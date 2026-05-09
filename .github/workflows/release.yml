@@ -15,10 +15,8 @@ permissions:
 jobs:
   release:
     runs-on: macos-latest
-    # GitHub environment "release" gates this job: only tags matching v*
-    # can deploy to it. The HOMEBREW_TAP_TOKEN secret lives there.
-    # Apple Developer creds come from AWS Secrets Manager via OIDC, not
-    # GitHub Secrets — see "Fetch macOS signing creds" step below.
+    # Tag-gated environment; signing credentials are fetched at run time
+    # rather than stored in GitHub secrets.
     environment: release
     steps:
       - uses: actions/checkout@v4
@@ -29,26 +27,21 @@ jobs:
           go-version: '1.22'
           cache: true
 
-      # Assume the hintoric-cli hub role in the GitHubOIDC AWS account
-      # (***ACCOUNT***). The role has ***KMS-ACTION*** on the manifest signing key
-      # plus ***ACTION*** on ***SECRET-NAME***.
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      # Pull Apple Developer ID + Notary creds from AWS Secrets Manager
-      # and inject them as env vars for goreleaser. The .goreleaser.yaml
-      # notarize block self-disables when MACOS_SIGN_P12 is empty, so a
-      # missing/empty secret produces unsigned builds without failing.
-      - name: Fetch macOS signing creds from AWS Secrets Manager
+      # Empty / unpopulated secret falls through to unsigned build:
+      # the .goreleaser.yaml notarize block gates on MACOS_SIGN_P12.
+      - name: Fetch signing credentials
         id: macos-creds
         run: |
           set -euo pipefail
           if ! secret=$(aws secretsmanager get-secret-value \
-                --secret-id ***SECRET-NAME*** \
+                --secret-id "${{ vars.MACOS_SIGNING_SECRET_ID }}" \
                 --query SecretString --output text 2>/dev/null); then
-            echo "::warning::macOS signing secret not yet populated; producing unsigned build"
+            echo "::warning::signing secret not available; producing unsigned build"
             exit 0
           fi
           for k in p12_base64 p12_password notary_issuer_id notary_key_id notary_key; do
@@ -74,12 +67,5 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Fine-grained PAT scoped to hintoric/homebrew-tap (Contents:write)
-          # so GoReleaser can commit the updated Cask on each release.
-          # Stored in GitHub env "release" because Tap-write needs an
-          # actual GitHub token (no AWS path possible here).
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          # MACOS_* env vars are injected by the previous step from
-          # AWS Secrets Manager (see macos-creds step above), or absent
-          # if the secret is unpopulated → goreleaser produces unsigned
-          # builds in that case.
+          # MACOS_* env vars are injected by the previous step.

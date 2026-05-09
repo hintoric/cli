@@ -1,20 +1,10 @@
 name: Publish Plugin Manifest
 
-# Manually triggered workflow that signs the plugin manifest via AWS KMS
-# (asymmetric ECDSA P-256 key, private key stays in HSM) and uploads the
-# signed manifest to the registry.
-#
-# Prerequisites:
-#   - KMS asymmetric signing key exists (ECC_NIST_P256, SIGN_VERIFY usage)
-#   - cmd/hint/pubkey.pem matches the KMS key's public key
-#   - IAM role with ***KMS-ACTION*** on the key + s3:PutObject on the registry bucket
-#   - GitHub OIDC provider is configured in the AWS account
+# Manually triggered: signs plugins.toml with the configured signing key
+# and uploads the signed pair to the registry bucket.
 #
 # Required repository variables:
-#   AWS_ROLE_ARN          - arn of the IAM role to assume via OIDC
-#   AWS_REGION            - e.g. eu-central-1
-#   KMS_KEY_ID            - ***KMS-ALIAS*** (or key arn)
-#   REGISTRY_S3_BUCKET    - e.g. cli.hintoric.com
+#   AWS_ROLE_ARN, AWS_REGION, KMS_KEY_ID, REGISTRY_S3_BUCKET
 on:
   workflow_dispatch:
     inputs:
@@ -45,7 +35,7 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Sign manifest via KMS
+      - name: Sign manifest
         run: |
           ./bin/hint-build sign \
             --manifest "${{ inputs.manifest_path }}" \
@@ -57,7 +47,7 @@ jobs:
             --manifest "${{ inputs.manifest_path }}" \
             --pubkey cmd/hint/pubkey.pem
 
-      - name: Upload manifest + signature to S3
+      - name: Upload to registry
         run: |
           aws s3 cp "${{ inputs.manifest_path }}"     "s3://${{ vars.REGISTRY_S3_BUCKET }}/plugins.toml"
           aws s3 cp "${{ inputs.manifest_path }}.sig" "s3://${{ vars.REGISTRY_S3_BUCKET }}/plugins.toml.sig"
