@@ -1,0 +1,22 @@
+# Build artifacts
+/bin/
+/dist/
+
+# Local dev keypair — production signing happens via AWS KMS,
+# the key in keys/ never reaches CI or production.
+/keys/*
+!/keys/.gitkeep
+
+# Coverage
+*.out
+coverage.html
+
+# Editor / tooling
+.vscode/
+.idea/
+.DS_Store
+.claude/
+
+# Test artifacts
+testdata/hint-echo/hint-echo
+testdata/registry/

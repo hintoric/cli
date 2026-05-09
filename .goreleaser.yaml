@@ -1,0 +1,98 @@
+# GoReleaser config for hint + hint-build.
+#
+# Local snapshot:   goreleaser build --snapshot --clean
+# Local full run:   goreleaser release --snapshot --clean   # produces dist/, no upload
+# CI release:       triggered by `git push <tag>`, see .github/workflows/release.yml
+#
+# Two binaries × four "build groups" (darwin uses CGO + linkmode=external for
+# LC_UUID compatibility on macOS 26+; non-darwin stays pure-Go for cheap
+# cross-compilation). hint and hint-build ship together in every archive.
+
+version: 2
+
+project_name: hint
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  # Only the host binary is shipped to end users via brew + GitHub Releases.
+  # hint-build is internal Hintoric tooling for signing manifests and lives
+  # in cmd/hint-build; release workflows that need it build it from source.
+  - id: hint-darwin
+    main: ./cmd/hint
+    binary: hint
+    env:
+      - CGO_ENABLED=1
+    ldflags:
+      - -s -w -X main.version={{.Version}} -linkmode=external
+    goos: [darwin]
+    goarch: [amd64, arm64]
+
+  - id: hint-other
+    main: ./cmd/hint
+    binary: hint
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos: [linux, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      # No windows/arm64 yet — no consumer demand, would need separate testing.
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_
+      {{- if eq .Os "darwin"}}macos
+      {{- else }}{{ .Os }}{{ end }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+
+release:
+  draft: false
+  prerelease: auto
+  name_template: "{{.ProjectName}} {{.Version}}"
+
+# Homebrew tap auto-publish via Cask (the modern goreleaser path for
+# prebuilt-binary distributions). The fine-grained PAT in HOMEBREW_TAP_TOKEN
+# must have Contents:read+write on hintoric/homebrew-tap.
+homebrew_casks:
+  - name: hint
+    repository:
+      owner: hintoric
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    commit_author:
+      name: hintoric-ci
+      email: ci@hintoric.com
+    homepage: "https://github.com/hintoric/cli"
+    description: "Hintoric command-line tool — host CLI with a signed plugin system"
+    # Skip cask publish on prereleases (e.g. v0.1.0-rc1).
+    skip_upload: auto

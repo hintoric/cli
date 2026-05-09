@@ -1,0 +1,63 @@
+name: Publish Plugin Manifest
+
+# Manually triggered workflow that signs the plugin manifest via AWS KMS
+# (asymmetric ECDSA P-256 key, private key stays in HSM) and uploads the
+# signed manifest to the registry.
+#
+# Prerequisites:
+#   - KMS asymmetric signing key exists (ECC_NIST_P256, SIGN_VERIFY usage)
+#   - cmd/hint/pubkey.pem matches the KMS key's public key
+#   - IAM role with ***KMS-ACTION*** on the key + s3:PutObject on the registry bucket
+#   - GitHub OIDC provider is configured in the AWS account
+#
+# Required repository variables:
+#   AWS_ROLE_ARN          - arn of the IAM role to assume via OIDC
+#   AWS_REGION            - e.g. eu-central-1
+#   KMS_KEY_ID            - ***KMS-ALIAS*** (or key arn)
+#   REGISTRY_S3_BUCKET    - e.g. cli.hintoric.com
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_path:
+        description: "Path to plugins.toml in this repo"
+        required: true
+        default: "plugins.toml"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Build hint-build
+        run: go build -o bin/hint-build ./cmd/hint-build
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Sign manifest via KMS
+        run: |
+          ./bin/hint-build sign \
+            --manifest "${{ inputs.manifest_path }}" \
+            --kms-key-id "${{ vars.KMS_KEY_ID }}"
+
+      - name: Verify locally before publishing
+        run: |
+          ./bin/hint-build verify \
+            --manifest "${{ inputs.manifest_path }}" \
+            --pubkey cmd/hint/pubkey.pem
+
+      - name: Upload manifest + signature to S3
+        run: |
+          aws s3 cp "${{ inputs.manifest_path }}"     "s3://${{ vars.REGISTRY_S3_BUCKET }}/plugins.toml"
+          aws s3 cp "${{ inputs.manifest_path }}.sig" "s3://${{ vars.REGISTRY_S3_BUCKET }}/plugins.toml.sig"
