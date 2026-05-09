@@ -1,5 +1,5 @@
 SchemaVersion = 1
-GeneratedAt = "2026-05-09T11:48:00Z"
+GeneratedAt = "2026-05-09T11:58:00Z"
 
 [[Plugin]]
   Shortname = "hello"
@@ -18,6 +18,18 @@ GeneratedAt = "2026-05-09T11:48:00Z"
     OS = "linux"
     Arch = "amd64"
     Sum = "6e3a0a50b924e7b3e237e2fd9a76ef9b28a6cd0e097b4d3665f27d95cf74d1ba"
+
+  [[Plugin.Release]]
+    Version = "0.1.1"
+    OS = "darwin"
+    Arch = "arm64"
+    Sum = "e9fb3ad9c2af129e5be6bf9da5f182d58108dd101b771a7906ba2aade3aafce9"
+
+  [[Plugin.Release]]
+    Version = "0.1.1"
+    OS = "linux"
+    Arch = "amd64"
+    Sum = "9888e124e3a998cd3cfd977091e037285648cb16911358bb0399bad033887103"
 
   [[Plugin.Command]]
     Name = "[your-name]"

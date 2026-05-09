@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	hcplugin "github.com/hashicorp/go-plugin"
@@ -25,7 +26,9 @@ func (impl) RunCommand(_ *proto.AdditionalInfo, args []string) (int32, error) {
 	if len(args) > 0 {
 		greeting = strings.Join(args, " ")
 	}
-	fmt.Printf("hello, %s — from the Hintoric CLI plugin demo\n", greeting)
+	// stderr is fd-inherited from the host through hcplugin's exec; stdout
+	// is captured for the handshake protocol and not surfaced to the user.
+	fmt.Fprintf(os.Stderr, "hello, %s — from the Hintoric CLI plugin demo\n", greeting)
 	return 0, nil
 }
 
