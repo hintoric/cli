@@ -1,0 +1,24 @@
+SchemaVersion = 1
+GeneratedAt = "2026-05-09T11:48:00Z"
+
+[[Plugin]]
+  Shortname = "hello"
+  Shortdesc = "First plugin demo — prints a friendly greeting"
+  Binary = "hint-hello"
+  MagicCookieValue = "h1nt-hell0-c00k1e-2026"
+
+  [[Plugin.Release]]
+    Version = "0.1.0"
+    OS = "darwin"
+    Arch = "arm64"
+    Sum = "3d560304159ca2d13fa24d46fc79b83545887dff3ba1d8be5aa6e10b0d0834db"
+
+  [[Plugin.Release]]
+    Version = "0.1.0"
+    OS = "linux"
+    Arch = "amd64"
+    Sum = "6e3a0a50b924e7b3e237e2fd9a76ef9b28a6cd0e097b4d3665f27d95cf74d1ba"
+
+  [[Plugin.Command]]
+    Name = "[your-name]"
+    Desc = "Say hello to a custom name (default: world)"
