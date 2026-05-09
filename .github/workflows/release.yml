@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write   # required for AWS OIDC role assumption
 
 # All five platforms (linux amd64/arm64, darwin amd64/arm64, windows amd64)
 # build on macos-latest. Apple's Xcode CLT ships universal SDKs, so darwin/amd64
@@ -15,8 +16,9 @@ jobs:
   release:
     runs-on: macos-latest
     # GitHub environment "release" gates this job: only tags matching v*
-    # can deploy to it. Secrets (HOMEBREW_TAP_TOKEN) and any future env-
-    # scoped vars live there, not at repo level.
+    # can deploy to it. The HOMEBREW_TAP_TOKEN secret lives there.
+    # Apple Developer creds come from AWS Secrets Manager via OIDC, not
+    # GitHub Secrets — see "Fetch macOS signing creds" step below.
     environment: release
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +28,45 @@ jobs:
         with:
           go-version: '1.22'
           cache: true
+
+      # Assume the hintoric-cli hub role in the GitHubOIDC AWS account
+      # (***ACCOUNT***). The role has ***KMS-ACTION*** on the manifest signing key
+      # plus ***ACTION*** on ***SECRET-NAME***.
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Pull Apple Developer ID + Notary creds from AWS Secrets Manager
+      # and inject them as env vars for goreleaser. The .goreleaser.yaml
+      # notarize block self-disables when MACOS_SIGN_P12 is empty, so a
+      # missing/empty secret produces unsigned builds without failing.
+      - name: Fetch macOS signing creds from AWS Secrets Manager
+        id: macos-creds
+        run: |
+          set -euo pipefail
+          if ! secret=$(aws secretsmanager get-secret-value \
+                --secret-id ***SECRET-NAME*** \
+                --query SecretString --output text 2>/dev/null); then
+            echo "::warning::macOS signing secret not yet populated; producing unsigned build"
+            exit 0
+          fi
+          for k in p12_base64 p12_password notary_issuer_id notary_key_id notary_key; do
+            v=$(echo "$secret" | jq -r ".$k // empty")
+            if [ -z "$v" ]; then
+              echo "::warning::macOS signing secret missing field $k; producing unsigned build"
+              exit 0
+            fi
+            echo "::add-mask::$v"
+          done
+          {
+            echo "MACOS_SIGN_P12=$(echo "$secret"        | jq -r .p12_base64)"
+            echo "MACOS_SIGN_PASSWORD=$(echo "$secret"   | jq -r .p12_password)"
+            echo "MACOS_NOTARY_ISSUER_ID=$(echo "$secret"| jq -r .notary_issuer_id)"
+            echo "MACOS_NOTARY_KEY_ID=$(echo "$secret"   | jq -r .notary_key_id)"
+            echo "MACOS_NOTARY_KEY=$(echo "$secret"      | jq -r .notary_key)"
+          } >> "$GITHUB_ENV"
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -34,13 +75,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Fine-grained PAT scoped to hintoric/homebrew-tap (Contents:write)
-          # so GoReleaser can commit the updated Formula on each release.
+          # so GoReleaser can commit the updated Cask on each release.
+          # Stored in GitHub env "release" because Tap-write needs an
+          # actual GitHub token (no AWS path possible here).
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          # macOS Developer ID signing + notarization. Block in
-          # .goreleaser.yaml self-disables when MACOS_SIGN_P12 is empty,
-          # so unset secrets simply mean unsigned builds.
-          MACOS_SIGN_P12:        ${{ secrets.MACOS_SIGN_P12 }}
-          MACOS_SIGN_PASSWORD:   ${{ secrets.MACOS_SIGN_PASSWORD }}
-          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
-          MACOS_NOTARY_KEY_ID:    ${{ secrets.MACOS_NOTARY_KEY_ID }}
-          MACOS_NOTARY_KEY:       ${{ secrets.MACOS_NOTARY_KEY }}
+          # MACOS_* env vars are injected by the previous step from
+          # AWS Secrets Manager (see macos-creds step above), or absent
+          # if the secret is unpopulated → goreleaser produces unsigned
+          # builds in that case.
