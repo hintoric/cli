@@ -30,6 +30,7 @@ jobs:
       - name: Build hint-build
         run: go build -o bin/hint-build ./cmd/hint-build
 
+      # 1. Assume the OIDC hub role — has kms:Sign on the manifest signing key.
       - uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
@@ -47,7 +48,22 @@ jobs:
             --manifest "${{ inputs.manifest_path }}" \
             --pubkey cmd/hint/pubkey.pem
 
+      # 2. Chain into the registry-publish spoke role — has s3:PutObject on the
+      # registry bucket + cloudfront:CreateInvalidation on the distribution.
+      # The hub-role creds from step 1 are used to assume this spoke role.
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.REGISTRY_PUBLISH_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-chaining: true
+
       - name: Upload to registry
         run: |
-          aws s3 cp "${{ inputs.manifest_path }}"     "s3://${{ vars.REGISTRY_S3_BUCKET }}/plugins.toml"
-          aws s3 cp "${{ inputs.manifest_path }}.sig" "s3://${{ vars.REGISTRY_S3_BUCKET }}/plugins.toml.sig"
+          aws s3 cp "${{ inputs.manifest_path }}"     "s3://${{ vars.REGISTRY_S3_BUCKET }}/cli/plugins.toml"
+          aws s3 cp "${{ inputs.manifest_path }}.sig" "s3://${{ vars.REGISTRY_S3_BUCKET }}/cli/plugins.toml.sig"
+
+      - name: Invalidate CDN cache for manifest
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.REGISTRY_CDN_DISTRIBUTION_ID }}" \
+            --paths "/cli/plugins.toml" "/cli/plugins.toml.sig"

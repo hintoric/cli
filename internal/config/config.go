@@ -13,7 +13,7 @@ import (
 )
 
 // DefaultManifestURL is the production registry root.
-const DefaultManifestURL = "https://cli.hintoric.com"
+const DefaultManifestURL = "https://cdn.hintoric.com/cli"
 
 // Config maps to the on-disk config.toml.
 type Config struct {
