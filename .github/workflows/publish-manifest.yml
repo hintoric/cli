@@ -56,6 +56,10 @@ jobs:
           role-to-assume: ${{ vars.REGISTRY_PUBLISH_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
           role-chaining: true
+          # The spoke role's trust policy admits sts:AssumeRole only;
+          # session tagging would require sts:TagSession too. We don't
+          # use the tags downstream, so skip the extra IAM scope.
+          role-skip-session-tagging: true
 
       - name: Upload to registry
         run: |
