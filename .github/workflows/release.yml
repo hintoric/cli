@@ -36,3 +36,11 @@ jobs:
           # Fine-grained PAT scoped to hintoric/homebrew-tap (Contents:write)
           # so GoReleaser can commit the updated Formula on each release.
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          # macOS Developer ID signing + notarization. Block in
+          # .goreleaser.yaml self-disables when MACOS_SIGN_P12 is empty,
+          # so unset secrets simply mean unsigned builds.
+          MACOS_SIGN_P12:        ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD:   ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID:    ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY:       ${{ secrets.MACOS_NOTARY_KEY }}

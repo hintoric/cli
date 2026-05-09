@@ -80,6 +80,27 @@ release:
   prerelease: auto
   name_template: "{{.ProjectName}} {{.Version}}"
 
+# macOS code-signing + notarization. Activates only when MACOS_SIGN_P12 is
+# set in the workflow env; release runs without it (signed=false) skip this
+# block silently. Required secrets (env "release"):
+#   MACOS_SIGN_P12        – base64-encoded Developer ID Application .p12
+#   MACOS_SIGN_PASSWORD   – password protecting the .p12
+#   MACOS_NOTARY_ISSUER_ID – App Store Connect API key issuer (UUID)
+#   MACOS_NOTARY_KEY_ID    – API key id (10 chars)
+#   MACOS_NOTARY_KEY       – contents of the AuthKey_*.p8 file
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      ids: [hint-darwin]
+      sign:
+        certificate: "{{ .Env.MACOS_SIGN_P12 }}"
+        password:    "{{ .Env.MACOS_SIGN_PASSWORD }}"
+      notarize:
+        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
+        key_id:    "{{ .Env.MACOS_NOTARY_KEY_ID }}"
+        key:       "{{ .Env.MACOS_NOTARY_KEY }}"
+        wait: true
+
 # Homebrew tap auto-publish via Cask (the modern goreleaser path for
 # prebuilt-binary distributions). The fine-grained PAT in HOMEBREW_TAP_TOKEN
 # must have Contents:read+write on hintoric/homebrew-tap.
