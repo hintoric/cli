@@ -100,6 +100,10 @@ notarize:
         key_id:    "{{ .Env.MACOS_NOTARY_KEY_ID }}"
         key:       "{{ .Env.MACOS_NOTARY_KEY }}"
         wait: true
+        # Apple's notary queue can take 5-15 min on first submission of a
+        # new cert. Default goreleaser timeout is 10m → tag retries fail.
+        # 30 min covers cold-cert + busy-queue scenarios.
+        timeout: 30m
 
 # Homebrew tap auto-publish via Cask (the modern goreleaser path for
 # prebuilt-binary distributions). The fine-grained PAT in HOMEBREW_TAP_TOKEN
