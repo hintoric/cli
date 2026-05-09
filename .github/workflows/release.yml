@@ -44,20 +44,41 @@ jobs:
             echo "::warning::signing secret not available; producing unsigned build"
             exit 0
           fi
+          # Validate all fields populated.
           for k in p12_base64 p12_password notary_issuer_id notary_key_id notary_key; do
-            v=$(echo "$secret" | jq -r ".$k // empty")
-            if [ -z "$v" ]; then
-              echo "::warning::macOS signing secret missing field $k; producing unsigned build"
+            if [ -z "$(echo "$secret" | jq -r ".$k // empty")" ]; then
+              echo "::warning::signing secret missing field $k; producing unsigned build"
               exit 0
             fi
-            echo "::add-mask::$v"
           done
+
+          # Mask each value BEFORE any subsequent step can possibly echo it.
+          # Multi-line values (notary_key) are masked per-line — GitHub mask
+          # is exact-match per line, so a multi-line value passed wholesale
+          # would not catch substrings printed by error messages.
+          for k in p12_base64 p12_password notary_issuer_id notary_key_id; do
+            echo "::add-mask::$(echo "$secret" | jq -r ".$k")"
+          done
+          echo "$secret" | jq -r .notary_key | while IFS= read -r line; do
+            [ -n "$line" ] && echo "::add-mask::$line"
+          done
+
+          # Single-line vars first.
           {
-            echo "MACOS_SIGN_P12=$(echo "$secret"        | jq -r .p12_base64)"
-            echo "MACOS_SIGN_PASSWORD=$(echo "$secret"   | jq -r .p12_password)"
-            echo "MACOS_NOTARY_ISSUER_ID=$(echo "$secret"| jq -r .notary_issuer_id)"
-            echo "MACOS_NOTARY_KEY_ID=$(echo "$secret"   | jq -r .notary_key_id)"
-            echo "MACOS_NOTARY_KEY=$(echo "$secret"      | jq -r .notary_key)"
+            echo "MACOS_SIGN_P12=$(echo        "$secret" | jq -r .p12_base64)"
+            echo "MACOS_SIGN_PASSWORD=$(echo   "$secret" | jq -r .p12_password)"
+            echo "MACOS_NOTARY_ISSUER_ID=$(echo "$secret" | jq -r .notary_issuer_id)"
+            echo "MACOS_NOTARY_KEY_ID=$(echo   "$secret" | jq -r .notary_key_id)"
+          } >> "$GITHUB_ENV"
+
+          # Multi-line value via heredoc syntax — single-line KEY=VALUE writes
+          # break $GITHUB_ENV when the value spans newlines, and the runner
+          # error includes raw value bytes in its log.
+          DELIM="HINT_EOF_$(openssl rand -hex 16)"
+          {
+            echo "MACOS_NOTARY_KEY<<$DELIM"
+            echo "$secret" | jq -r .notary_key
+            echo "$DELIM"
           } >> "$GITHUB_ENV"
 
       - uses: goreleaser/goreleaser-action@v6
