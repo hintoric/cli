@@ -8,11 +8,20 @@ import (
 	"os"
 	"strings"
 
+	hclog "github.com/hashicorp/go-hclog"
 	hcplugin "github.com/hashicorp/go-plugin"
 
 	"github.com/hintoric/cli/internal/plugins"
 	"github.com/hintoric/cli/internal/plugins/proto"
 )
+
+// pluginLog uses hclog so hcplugin parses + forwards through the host's
+// configured Logger. Raw stdout/stderr writes from a gRPC plugin do not
+// reach the user's terminal in hcplugin v1.6+.
+var pluginLog = hclog.New(&hclog.LoggerOptions{
+	Output:     os.Stderr,
+	JSONFormat: true,
+})
 
 // cookie is a fixed magic-cookie value the host uses to validate that this
 // binary really is a hint plugin. Must match the MagicCookieValue declared
@@ -26,9 +35,7 @@ func (impl) RunCommand(_ *proto.AdditionalInfo, args []string) (int32, error) {
 	if len(args) > 0 {
 		greeting = strings.Join(args, " ")
 	}
-	// stderr is fd-inherited from the host through hcplugin's exec; stdout
-	// is captured for the handshake protocol and not surfaced to the user.
-	fmt.Fprintf(os.Stderr, "hello, %s — from the Hintoric CLI plugin demo\n", greeting)
+	pluginLog.Info(fmt.Sprintf("hello, %s — from the Hintoric CLI plugin demo", greeting))
 	return 0, nil
 }
 

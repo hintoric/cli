@@ -1,5 +1,5 @@
 SchemaVersion = 1
-GeneratedAt = "2026-05-09T11:58:00Z"
+GeneratedAt = "2026-05-09T12:05:00Z"
 
 [[Plugin]]
   Shortname = "hello"
@@ -8,28 +8,16 @@ GeneratedAt = "2026-05-09T11:58:00Z"
   MagicCookieValue = "h1nt-hell0-c00k1e-2026"
 
   [[Plugin.Release]]
-    Version = "0.1.0"
+    Version = "0.1.2"
     OS = "darwin"
     Arch = "arm64"
-    Sum = "3d560304159ca2d13fa24d46fc79b83545887dff3ba1d8be5aa6e10b0d0834db"
+    Sum = "be176e729c421f04b088caee6c571f90714756b9f35a7c3aa2e284717a92d6fd"
 
   [[Plugin.Release]]
-    Version = "0.1.0"
+    Version = "0.1.2"
     OS = "linux"
     Arch = "amd64"
-    Sum = "6e3a0a50b924e7b3e237e2fd9a76ef9b28a6cd0e097b4d3665f27d95cf74d1ba"
-
-  [[Plugin.Release]]
-    Version = "0.1.1"
-    OS = "darwin"
-    Arch = "arm64"
-    Sum = "e9fb3ad9c2af129e5be6bf9da5f182d58108dd101b771a7906ba2aade3aafce9"
-
-  [[Plugin.Release]]
-    Version = "0.1.1"
-    OS = "linux"
-    Arch = "amd64"
-    Sum = "9888e124e3a998cd3cfd977091e037285648cb16911358bb0399bad033887103"
+    Sum = "22df807c7baf22b4cd40d4fe6a3519b68dfc8d33f9734a43d98bf935e4176193"
 
   [[Plugin.Command]]
     Name = "[your-name]"
