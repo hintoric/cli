@@ -4,19 +4,25 @@ The Hintoric command-line tool. A small static host binary with an extensible pl
 
 ## Install
 
-Download the archive for your platform from the [latest release](https://github.com/hintoric/cli/releases/latest), extract, and put `hint` on your `$PATH`:
+### macOS (Homebrew)
 
 ```bash
-# macOS (Apple Silicon)
-curl -L https://github.com/hintoric/cli/releases/latest/download/hint_0.1.0_macos_arm64.tar.gz | tar xz
-sudo mv hint /usr/local/bin/
+brew tap hintoric/tap
+brew install hint
+```
 
-# Linux (x86_64)
+### Linux
+
+```bash
 curl -L https://github.com/hintoric/cli/releases/latest/download/hint_0.1.0_linux_x86_64.tar.gz | tar xz
 sudo mv hint /usr/local/bin/
 ```
 
-A Homebrew tap is on the roadmap.
+(replace `linux_x86_64` with `linux_arm64` on ARM)
+
+### Windows
+
+Download the [latest release](https://github.com/hintoric/cli/releases/latest) `*_windows_x86_64.zip`, extract, and place `hint.exe` on your `PATH`.
 
 ## Usage
 
