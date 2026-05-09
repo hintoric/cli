@@ -113,7 +113,7 @@ homebrew_casks:
     commit_author:
       name: hintoric-ci
       email: ci@hintoric.com
-    homepage: "https://github.com/hintoric/cli"
-    description: "Hintoric command-line tool — host CLI with a signed plugin system"
+    homepage: "https://hintoric.com"
+    description: "The global command-line tool for Hintoric"
     # Skip cask publish on prereleases (e.g. v0.1.0-rc1).
     skip_upload: auto
