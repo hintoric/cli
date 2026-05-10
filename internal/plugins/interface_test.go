@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"context"
 	"testing"
 
 	"github.com/hintoric/cli/internal/plugins/proto"
@@ -10,7 +11,7 @@ type fakeDispatcher struct {
 	gotArgs []string
 }
 
-func (f *fakeDispatcher) RunCommand(_ *proto.AdditionalInfo, args []string) (int32, error) {
+func (f *fakeDispatcher) RunCommand(_ context.Context, _ *proto.AdditionalInfo, args []string, _ *PluginContext) (int32, error) {
 	f.gotArgs = args
 	return 42, nil
 }

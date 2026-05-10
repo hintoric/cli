@@ -1,11 +1,11 @@
 // hint-echo is a minimal hint plugin used in integration tests. It writes its
-// args (one per line) to stdout and exits 0, unless the first arg is "fail",
-// in which case it exits 7.
+// args (one per line) to ctx.Stdout and exits 0, unless the first arg is
+// "fail", in which case it exits 7.
 package main
 
 import (
+	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	hcplugin "github.com/hashicorp/go-plugin"
@@ -18,11 +18,11 @@ const cookie = "h1nt-ech0-c00k1e"
 
 type impl struct{}
 
-func (impl) RunCommand(_ *proto.AdditionalInfo, args []string) (int32, error) {
+func (impl) RunCommand(_ context.Context, _ *proto.AdditionalInfo, args []string, pctx *plugins.PluginContext) (int32, error) {
 	if len(args) > 0 && args[0] == "fail" {
 		return 7, nil
 	}
-	fmt.Fprintln(os.Stdout, strings.Join(args, "\n"))
+	fmt.Fprintln(pctx.Stdout, strings.Join(args, "\n"))
 	return 0, nil
 }
 

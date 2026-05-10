@@ -34,6 +34,9 @@ func pluginUpdateCommand(pubKeyPEM []byte) *cobra.Command {
 				if err != nil {
 					return err
 				}
+				if all && len(args) > 0 {
+					return fmt.Errorf("--all and a plugin name are mutually exclusive")
+				}
 				targets := []string{}
 				switch {
 				case all:

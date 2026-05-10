@@ -25,6 +25,8 @@ const (
 // HintPluginClient is the client API for HintPlugin service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// HintPlugin is implemented by plugin processes; the host is the gRPC client.
 type HintPluginClient interface {
 	RunCommand(ctx context.Context, in *RunCommandRequest, opts ...grpc.CallOption) (*RunCommandResponse, error)
 }
@@ -50,6 +52,8 @@ func (c *hintPluginClient) RunCommand(ctx context.Context, in *RunCommandRequest
 // HintPluginServer is the server API for HintPlugin service.
 // All implementations must embed UnimplementedHintPluginServer
 // for forward compatibility.
+//
+// HintPlugin is implemented by plugin processes; the host is the gRPC client.
 type HintPluginServer interface {
 	RunCommand(context.Context, *RunCommandRequest) (*RunCommandResponse, error)
 	mustEmbedUnimplementedHintPluginServer()
@@ -114,6 +118,126 @@ var HintPlugin_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RunCommand",
 			Handler:    _HintPlugin_RunCommand_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "internal/plugins/proto/hint_plugin.proto",
+}
+
+const (
+	CoreCLIHelper_Print_FullMethodName = "/hint.plugin.v1.CoreCLIHelper/Print"
+)
+
+// CoreCLIHelperClient is the client API for CoreCLIHelper service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// CoreCLIHelper runs in the host. Plugins call it via the gRPC broker by
+// dialing the broker_id passed in RunCommandRequest. Currently only handles
+// stdout/stderr forwarding; future methods (keychain, telemetry, peer-plugin
+// invocation) can be added on this same service without breaking the wire.
+type CoreCLIHelperClient interface {
+	// Print forwards a chunk of bytes to the host's stdout or stderr.
+	// Single-writer semantics: a plugin must serialize its calls to Print on
+	// a single stream within a RunCommand invocation, otherwise concurrent
+	// unary RPCs may interleave.
+	Print(ctx context.Context, in *PrintRequest, opts ...grpc.CallOption) (*PrintResponse, error)
+}
+
+type coreCLIHelperClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewCoreCLIHelperClient(cc grpc.ClientConnInterface) CoreCLIHelperClient {
+	return &coreCLIHelperClient{cc}
+}
+
+func (c *coreCLIHelperClient) Print(ctx context.Context, in *PrintRequest, opts ...grpc.CallOption) (*PrintResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PrintResponse)
+	err := c.cc.Invoke(ctx, CoreCLIHelper_Print_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// CoreCLIHelperServer is the server API for CoreCLIHelper service.
+// All implementations must embed UnimplementedCoreCLIHelperServer
+// for forward compatibility.
+//
+// CoreCLIHelper runs in the host. Plugins call it via the gRPC broker by
+// dialing the broker_id passed in RunCommandRequest. Currently only handles
+// stdout/stderr forwarding; future methods (keychain, telemetry, peer-plugin
+// invocation) can be added on this same service without breaking the wire.
+type CoreCLIHelperServer interface {
+	// Print forwards a chunk of bytes to the host's stdout or stderr.
+	// Single-writer semantics: a plugin must serialize its calls to Print on
+	// a single stream within a RunCommand invocation, otherwise concurrent
+	// unary RPCs may interleave.
+	Print(context.Context, *PrintRequest) (*PrintResponse, error)
+	mustEmbedUnimplementedCoreCLIHelperServer()
+}
+
+// UnimplementedCoreCLIHelperServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedCoreCLIHelperServer struct{}
+
+func (UnimplementedCoreCLIHelperServer) Print(context.Context, *PrintRequest) (*PrintResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Print not implemented")
+}
+func (UnimplementedCoreCLIHelperServer) mustEmbedUnimplementedCoreCLIHelperServer() {}
+func (UnimplementedCoreCLIHelperServer) testEmbeddedByValue()                       {}
+
+// UnsafeCoreCLIHelperServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to CoreCLIHelperServer will
+// result in compilation errors.
+type UnsafeCoreCLIHelperServer interface {
+	mustEmbedUnimplementedCoreCLIHelperServer()
+}
+
+func RegisterCoreCLIHelperServer(s grpc.ServiceRegistrar, srv CoreCLIHelperServer) {
+	// If the following call pancis, it indicates UnimplementedCoreCLIHelperServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&CoreCLIHelper_ServiceDesc, srv)
+}
+
+func _CoreCLIHelper_Print_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PrintRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CoreCLIHelperServer).Print(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CoreCLIHelper_Print_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CoreCLIHelperServer).Print(ctx, req.(*PrintRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// CoreCLIHelper_ServiceDesc is the grpc.ServiceDesc for CoreCLIHelper service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var CoreCLIHelper_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "hint.plugin.v1.CoreCLIHelper",
+	HandlerType: (*CoreCLIHelperServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Print",
+			Handler:    _CoreCLIHelper_Print_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

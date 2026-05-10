@@ -64,6 +64,11 @@ func ParseManifest(data []byte) (*PluginList, error) {
 
 var shortnameRE = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
+// ValidShortname reports whether s is a syntactically valid plugin shortname.
+// Use this on any user-supplied name before it reaches the filesystem so that
+// "../foo" or "/etc/passwd" can't slip through filepath.Join.
+func ValidShortname(s string) bool { return shortnameRE.MatchString(s) }
+
 // ValidateManifest enforces schema constraints on a parsed manifest.
 // It does not verify signatures — see VerifyManifestSignature for that.
 func ValidateManifest(pl *PluginList) error {
