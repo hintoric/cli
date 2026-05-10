@@ -95,13 +95,16 @@ jobs:
       # Auth is OIDC trusted publisher (configured per-package on npmjs.com),
       # so no NPM_TOKEN secret is needed. The job already has id-token:write
       # for the AWS OIDC step above; npm CLI 11.5+ reuses it.
+      #
+      # Node 24 ships with npm 11.x out of the box, which is what we need
+      # for trusted publishing. The previous "npm install -g npm@latest"
+      # step on Node 22 left a broken module resolution on macos-latest
+      # (MODULE_NOT_FOUND: promise-retry) — using a Node version that
+      # already bundles a recent npm avoids the self-upgrade footgun.
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '22'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-
-      - name: Upgrade npm to a version that supports trusted publishing
-        run: npm install -g npm@latest
 
       - name: Pack npm packages from goreleaser dist
         env:
