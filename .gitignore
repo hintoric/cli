@@ -4,8 +4,7 @@
 
 # Local dev keypair — production signing happens via AWS KMS,
 # the key in keys/ never reaches CI or production.
-/keys/*
-!/keys/.gitkeep
+/keys/
 
 # Coverage
 *.out
