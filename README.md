@@ -11,6 +11,17 @@ brew tap hintoric/tap
 brew install hint
 ```
 
+### npm
+
+```bash
+npm install -g @hintoric/cli
+# or run ad-hoc:
+npx @hintoric/cli version
+```
+
+The right native binary is fetched automatically via npm's `os` / `cpu`
+optional-dependency resolution — no postinstall scripts.
+
 ### Linux
 
 ```bash

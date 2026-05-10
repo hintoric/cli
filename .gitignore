@@ -1,6 +1,8 @@
 # Build artifacts
 /bin/
 /dist/
+/npm/dist/
+/npm/cli/node_modules/
 
 # Local dev keypair — production signing happens via AWS KMS,
 # the key in keys/ never reaches CI or production.
