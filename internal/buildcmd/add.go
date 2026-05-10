@@ -49,12 +49,28 @@ func addCommand() *cobra.Command {
 					continue
 				}
 				sum := sha256.Sum256(data)
-				p.Releases = append(p.Releases, plugins.Release{
+				rel := plugins.Release{
 					Version: version,
 					OS:      goos,
 					Arch:    goarch,
 					Sum:     hex.EncodeToString(sum[:]),
-				})
+				}
+				// Replace any existing entry for the same (version, os,
+				// arch) tuple instead of appending a duplicate. Re-running
+				// `hint-build add` after rebuilding a binary previously
+				// produced two rows with different checksums and the
+				// manifest validator would then reject the file.
+				replaced := false
+				for i, existing := range p.Releases {
+					if existing.Version == version && existing.OS == goos && existing.Arch == goarch {
+						p.Releases[i] = rel
+						replaced = true
+						break
+					}
+				}
+				if !replaced {
+					p.Releases = append(p.Releases, rel)
+				}
 				added++
 			}
 			if added == 0 {

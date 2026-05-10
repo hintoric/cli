@@ -91,6 +91,12 @@ func (r *Runner) Run(ctx context.Context, p *Plugin, args []string) (int, error)
 
 	cmd := exec.Command(binPath)
 	cmd.Env = r.filteredEnv()
+	// Belt-and-braces: hcplugin's ClientConfig.SkipHostEnv flag (set below)
+	// is what actually prevents the host environment from being appended to
+	// cmd.Env. Without it, the value we just set here is silently extended
+	// with os.Environ() inside hcplugin.NewClient — the allowlist would be
+	// bypassed and any AWS_*/GITHUB_*/etc. secrets in the host env would
+	// reach the plugin process.
 
 	// hcplugin captures the plugin's stderr and routes it through this
 	// logger. Plugin stderr writes (fmt.Fprintln on os.Stderr) parse as
@@ -111,6 +117,12 @@ func (r *Runner) Run(ctx context.Context, p *Plugin, args []string) (int, error)
 		Logger:           logger,
 		Managed:          true,
 		AllowedProtocols: []hcplugin.Protocol{hcplugin.ProtocolGRPC},
+		// Without this hcplugin appends os.Environ() to cmd.Env, so the
+		// filteredEnv() allowlist above would be a no-op and the plugin
+		// would inherit every env var the host process has (AWS creds,
+		// GITHUB_TOKEN, ...). The cookie env-var is appended by hcplugin
+		// itself regardless of this flag.
+		SkipHostEnv: true,
 	}
 	// Skip checksum entirely in dev mode — the binary is whatever the
 	// developer just built, no manifest entry to verify against.
@@ -121,6 +133,11 @@ func (r *Runner) Run(ctx context.Context, p *Plugin, args []string) (int, error)
 		}
 	}
 	client := hcplugin.NewClient(clientConfig)
+	// Without this the plugin subprocess survives after Run returns on the
+	// error path. Managed: true above only guarantees cleanup via the
+	// package-global hcplugin.CleanupClients, which library consumers don't
+	// normally call. An explicit Kill is the lifecycle-tied teardown.
+	defer client.Kill()
 
 	rpcClient, err := client.Client()
 	if err != nil {

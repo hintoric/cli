@@ -1,10 +1,12 @@
 package buildcmd
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
@@ -66,11 +68,34 @@ func loadOrInit(path string) (*plugins.PluginList, error) {
 	return plugins.ParseManifest(data)
 }
 
+// saveManifest writes pl to path atomically: encode into a buffer first, then
+// write to a sibling temp file and rename into place. The naive
+// os.Create+encode pattern truncates the file on entry — if the encoder
+// fails midway (or the process dies), the existing manifest is left as a
+// half-written or empty file, which would brick subsequent runs.
 func saveManifest(path string, pl *plugins.PluginList) error {
-	f, err := os.Create(path)
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(pl); err != nil {
+		return err
+	}
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".plugins-*.toml.tmp")
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	return toml.NewEncoder(f).Encode(pl)
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(buf.Bytes()); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }
