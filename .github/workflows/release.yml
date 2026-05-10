@@ -90,3 +90,36 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           # MACOS_* env vars are injected by the previous step.
+
+      # npm publishing — distributes the same goreleaser binaries via npm.
+      # Auth is OIDC trusted publisher (configured per-package on npmjs.com),
+      # so no NPM_TOKEN secret is needed. The job already has id-token:write
+      # for the AWS OIDC step above; npm CLI 11.5+ reuses it.
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Upgrade npm to a version that supports trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Pack npm packages from goreleaser dist
+        env:
+          # GITHUB_REF_NAME is e.g. "v0.1.2" on a tag push; pack.mjs strips
+          # the leading "v" so npm gets a clean semver.
+          VERSION: ${{ github.ref_name }}
+        run: node npm/scripts/pack.mjs --version "$VERSION" --dist dist
+
+      - name: Publish npm packages (platform binaries first, meta last)
+        run: |
+          set -euo pipefail
+          # Publish platform packages before the meta. If we publish the
+          # meta first, its optionalDependencies point at versions that
+          # don't exist yet — installing during that window would fail
+          # for everyone except whoever happens to land on a built one.
+          for pkgdir in npm/dist/cli-*/; do
+            echo "publishing $(basename "$pkgdir") ..."
+            (cd "$pkgdir" && npm publish --provenance --access public)
+          done
+          echo "publishing meta @hintoric/cli ..."
+          (cd npm/dist/cli && npm publish --provenance --access public)

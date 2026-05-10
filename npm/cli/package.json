@@ -1,0 +1,35 @@
+{
+  "name": "@hintoric/cli",
+  "version": "0.0.0-development",
+  "description": "The global command-line tool for Hintoric",
+  "homepage": "https://github.com/hintoric/cli",
+  "license": "MIT",
+  "author": "Hintoric",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hintoric/cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hintoric/cli/issues"
+  },
+  "bin": {
+    "hint": "bin/hint.js"
+  },
+  "files": [
+    "bin/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "optionalDependencies": {
+    "@hintoric/cli-darwin-arm64": "0.0.0-development",
+    "@hintoric/cli-darwin-x64": "0.0.0-development",
+    "@hintoric/cli-linux-arm64": "0.0.0-development",
+    "@hintoric/cli-linux-x64": "0.0.0-development",
+    "@hintoric/cli-windows-x64": "0.0.0-development"
+  }
+}
