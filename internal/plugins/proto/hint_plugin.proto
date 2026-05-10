@@ -4,18 +4,47 @@ package hint.plugin.v1;
 
 option go_package = "github.com/hintoric/cli/internal/plugins/proto";
 
+// HintPlugin is implemented by plugin processes; the host is the gRPC client.
 service HintPlugin {
   rpc RunCommand(RunCommandRequest) returns (RunCommandResponse);
+}
+
+// CoreCLIHelper runs in the host. Plugins call it via the gRPC broker by
+// dialing the broker_id passed in RunCommandRequest. Currently only handles
+// stdout/stderr forwarding; future methods (keychain, telemetry, peer-plugin
+// invocation) can be added on this same service without breaking the wire.
+service CoreCLIHelper {
+  // Print forwards a chunk of bytes to the host's stdout or stderr.
+  // Single-writer semantics: a plugin must serialize its calls to Print on
+  // a single stream within a RunCommand invocation, otherwise concurrent
+  // unary RPCs may interleave.
+  rpc Print(PrintRequest) returns (PrintResponse);
 }
 
 message RunCommandRequest {
   repeated string args = 1;
   AdditionalInfo info = 2;
+  // Broker ID for the host's CoreCLIHelper. Plugin dials broker.Dial(id) to
+  // get a CoreCLIHelperClient and call back into the host process.
+  uint32 helper_broker_id = 3;
 }
 
 message RunCommandResponse {
   int32 exit_code = 1;
 }
+
+enum Stream {
+  STREAM_UNSPECIFIED = 0;
+  STREAM_STDOUT = 1;
+  STREAM_STDERR = 2;
+}
+
+message PrintRequest {
+  bytes data = 1;
+  Stream stream = 2;
+}
+
+message PrintResponse {}
 
 message AdditionalInfo {
   IsTerminal terminal_state = 1;

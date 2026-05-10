@@ -4,24 +4,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"os"
 	"strings"
 
-	hclog "github.com/hashicorp/go-hclog"
 	hcplugin "github.com/hashicorp/go-plugin"
 
 	"github.com/hintoric/cli/internal/plugins"
 	"github.com/hintoric/cli/internal/plugins/proto"
 )
-
-// pluginLog uses hclog so hcplugin parses + forwards through the host's
-// configured Logger. Raw stdout/stderr writes from a gRPC plugin do not
-// reach the user's terminal in hcplugin v1.6+.
-var pluginLog = hclog.New(&hclog.LoggerOptions{
-	Output:     os.Stderr,
-	JSONFormat: true,
-})
 
 // cookie is a fixed magic-cookie value the host uses to validate that this
 // binary really is a hint plugin. Must match the MagicCookieValue declared
@@ -30,12 +21,14 @@ const cookie = "h1nt-hell0-c00k1e-2026"
 
 type impl struct{}
 
-func (impl) RunCommand(_ *proto.AdditionalInfo, args []string) (int32, error) {
+func (impl) RunCommand(_ context.Context, _ *proto.AdditionalInfo, args []string, pctx *plugins.PluginContext) (int32, error) {
 	greeting := "world"
 	if len(args) > 0 {
 		greeting = strings.Join(args, " ")
 	}
-	pluginLog.Info(fmt.Sprintf("hello, %s — from the Hintoric CLI plugin demo", greeting))
+	// pctx.Stdout proxies via the host's CoreCLIHelper — bytes appear on the
+	// user's terminal regardless of hcplugin's stdio capture.
+	fmt.Fprintf(pctx.Stdout, "hello, %s — from the Hintoric CLI plugin demo\n", greeting)
 	return 0, nil
 }
 

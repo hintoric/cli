@@ -114,9 +114,16 @@ func TestEndToEnd(t *testing.T) {
 	inst := &plugins.Installer{
 		BaseURL: srv.URL, ConfigDir: cfgDir, CacheDir: cacheDir, HTTPClient: srv.Client(),
 	}
-	runner := &plugins.Runner{ConfigDir: cfgDir, Installer: inst}
+	var stdoutBuf, stderrBuf bytes.Buffer
+	runner := &plugins.Runner{
+		ConfigDir: cfgDir,
+		Installer: inst,
+		Stdout:    &stdoutBuf,
+		Stderr:    &stderrBuf,
+	}
 
-	// Happy path: hint echo hello world → exit 0
+	// Happy path: hint echo hello world → exit 0; stdout should contain
+	// the args (proves the CoreCLIHelper Print pipe works).
 	code, err := runner.Run(context.Background(), plug, []string{"hello", "world"})
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -124,6 +131,11 @@ func TestEndToEnd(t *testing.T) {
 	if code != 0 {
 		t.Errorf("expected exit 0, got %d", code)
 	}
+	if got, want := stdoutBuf.String(), "hello\nworld\n"; got != want {
+		t.Errorf("stdout: got %q, want %q", got, want)
+	}
+	stdoutBuf.Reset()
+	stderrBuf.Reset()
 
 	// Failure path: first arg "fail" → exit 7
 	code, err = runner.Run(context.Background(), plug, []string{"fail"})
