@@ -57,16 +57,22 @@ var defaultEnvAllowPrefixes = []string{"LC_", "XDG_", "HINT_"}
 // Run resolves an installed version (installing if needed), starts the plugin
 // via hcplugin, calls RunCommand, and returns the plugin's exit code.
 //
-// Two override paths skip the manifest:
-//   - HINT_PLUGINS_PATH env: install root override; use the binary from
-//     <HINT_PLUGINS_PATH>/<shortname>/<binary> with no version dir + no
-//     checksum check. Mirrors Stripe's STRIPE_PLUGINS_PATH escape hatch.
-//   - LocalDevelopmentVersion ("local.dev") on disk: same effect, tied to
-//     a per-plugin install dir so multiple plugins can dev-iterate at once.
+// Dev mode (skips manifest lookup + checksum verification) requires BOTH:
+//   - HINT_DEV_MODE=1
+//   - either HINT_PLUGINS_PATH set, or a "local.dev" version dir on disk
+//
+// Both gates are deliberate: a stale HINT_PLUGINS_PATH alone (e.g. left in
+// a developer's shell rc) is not enough to silently bypass verification.
+// When dev mode triggers, a clear warning is printed to stderr.
 func (r *Runner) Run(ctx context.Context, p *Plugin, args []string) (int, error) {
 	ver, devMode, err := r.resolveVersion(ctx, p)
 	if err != nil {
 		return 1, err
+	}
+	if devMode {
+		fmt.Fprintf(os.Stderr,
+			"warning: %s running in DEV MODE — checksum verification skipped\n",
+			p.Shortname)
 	}
 
 	var sumBytes []byte
@@ -159,15 +165,30 @@ func (r *Runner) resolveBinaryPath(p *Plugin, ver string, devMode bool) string {
 }
 
 // resolveVersion returns the version to use, plus a flag indicating dev mode
-// (HINT_PLUGINS_PATH override OR LocalDevelopmentVersion installed). Dev mode
-// skips manifest lookup + checksum verification.
+// is active. Dev mode skips manifest lookup + checksum verification and
+// requires BOTH HINT_DEV_MODE=1 AND a dev path/version (HINT_PLUGINS_PATH or
+// a local.dev directory on disk). Either gate alone falls back to the
+// normal manifest-verified flow.
 func (r *Runner) resolveVersion(ctx context.Context, p *Plugin) (string, bool, error) {
-	// Env override always wins.
-	if os.Getenv("HINT_PLUGINS_PATH") != "" {
+	devGated := os.Getenv("HINT_DEV_MODE") == "1"
+	envPath := os.Getenv("HINT_PLUGINS_PATH")
+
+	// HINT_PLUGINS_PATH dev mode: skip the on-disk version lookup entirely.
+	if devGated && envPath != "" {
 		return LocalDevelopmentVersion, true, nil
 	}
+
 	if v := InstalledVersion(r.ConfigDir, p.Shortname); v != "" {
-		return v, v == LocalDevelopmentVersion, nil
+		// local.dev directory dev mode: only honoured when explicitly gated.
+		if v == LocalDevelopmentVersion {
+			if devGated {
+				return v, true, nil
+			}
+			// local.dev exists but the gate isn't set — refuse rather than
+			// silently downgrading. Operator must opt in.
+			return "", false, fmt.Errorf("plugin %q has a local.dev install but HINT_DEV_MODE=1 is not set", p.Shortname)
+		}
+		return v, false, nil
 	}
 	rel := SelectLatestRelease(p, runtime.GOOS, runtime.GOARCH)
 	if rel == nil {
@@ -263,8 +284,18 @@ func InstalledVersion(configDir, shortname string) string {
 }
 
 // LocalDevelopmentVersion is a magic version string that disables checksum
-// verification and is preferred over any released version on disk. Use it
-// to iterate on a plugin locally without going through publish + manifest
-// re-sign on every change. Set HINT_PLUGINS_PATH to override the install
-// root entirely (see Installer.LocalDevPath / Run path resolution).
+// verification when paired with HINT_DEV_MODE=1. Use it to iterate on a
+// plugin locally without going through publish + manifest re-sign on every
+// change. Two ways to activate:
+//
+//	# Option 1: env-rooted plugin tree (Stripe-style)
+//	HINT_DEV_MODE=1 HINT_PLUGINS_PATH=/abs/path hint <plugin> ...
+//
+//	# Option 2: local.dev install dir
+//	mkdir -p ~/.config/hint/plugins/<plugin>/local.dev
+//	cp ./hint-<plugin> ~/.config/hint/plugins/<plugin>/local.dev/
+//	HINT_DEV_MODE=1 hint <plugin> ...
+//
+// Without HINT_DEV_MODE=1 set, both paths are refused — a stale env var
+// or stray local.dev dir cannot silently bypass checksum verification.
 const LocalDevelopmentVersion = "local.dev"
