@@ -14,7 +14,7 @@ import (
 // Dispatcher is what plugin implementers provide.
 //
 //   - ctx     — propagates host cancellation. Plugins doing long-running work
-//               should observe ctx.Done() and abort.
+//     should observe ctx.Done() and abort.
 //   - info    — terminal state, dimensions, filtered env from the host.
 //   - args    — argv as the user typed (after `hint <plugin>`).
 //   - pctx    — stdout/stderr writers proxied back to the host's terminal.
